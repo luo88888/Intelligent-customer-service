@@ -1,0 +1,6 @@
+/TODO.md
+*.code-workspace
+
+/chroma_db/
+/logs/
+__pycache__/

@@ -1,0 +1,18 @@
+.layout {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sider {
+  background: #fafafa !important;
+  border-right: 1px solid #e8e8e8;
+  overflow: hidden;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #ffffff;
+}

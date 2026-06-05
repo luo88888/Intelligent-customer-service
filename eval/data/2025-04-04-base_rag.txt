@@ -1,0 +1,13 @@
+==============================汇总结果==============================
+level: easy
+results: {'answer_relevancy': 0.7123, 'context_precision': 0.9333, 'faithfulness': 0.7983, 'context_recall': 0.8556}
+============================================================
+level: middle
+results: {'answer_relevancy': 0.7537, 'context_precision': 0.6667, 'faithfulness': 0.7626, 'context_recall': 0.6222}
+============================================================
+level: hard
+results: {'answer_relevancy': 0.5799, 'context_precision': 0.5333, 'faithfulness': 0.6424, 'context_recall': 0.3222}
+============================================================
+total_input_tokens: 531709
+total_output_tokens: 133137
+耗时: 0:33:42.352074秒

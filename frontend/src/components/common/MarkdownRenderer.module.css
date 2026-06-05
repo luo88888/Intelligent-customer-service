@@ -1,0 +1,114 @@
+/* Markdown 渲染样式 */
+.markdownBody {
+  font-size: 14px;
+  line-height: 1.7;
+  color: inherit;
+  word-break: break-word;
+}
+
+.markdownBody h1,
+.markdownBody h2,
+.markdownBody h3,
+.markdownBody h4,
+.markdownBody h5,
+.markdownBody h6 {
+  margin: 12px 0 8px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.markdownBody h1 { font-size: 1.5em; }
+.markdownBody h2 { font-size: 1.3em; }
+.markdownBody h3 { font-size: 1.15em; }
+.markdownBody h4 { font-size: 1.05em; }
+
+.markdownBody p {
+  margin: 6px 0;
+}
+
+.markdownBody p:first-child {
+  margin-top: 0;
+}
+
+.markdownBody p:last-child {
+  margin-bottom: 0;
+}
+
+.markdownBody ul,
+.markdownBody ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.markdownBody li {
+  margin: 2px 0;
+}
+
+.markdownBody blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid #1677ff;
+  background: rgba(22, 119, 255, 0.04);
+  color: #555;
+}
+
+.markdownBody table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.markdownBody th,
+.markdownBody td {
+  border: 1px solid #e8e8e8;
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.markdownBody th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.markdownBody hr {
+  border: none;
+  border-top: 1px solid #e8e8e8;
+  margin: 12px 0;
+}
+
+.markdownBody strong {
+  font-weight: 600;
+}
+
+.markdownBody a {
+  color: #1677ff;
+}
+
+/* 行内代码 */
+.inlineCode {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  word-break: break-all;
+}
+
+/* 代码块 */
+.codeBlock {
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e8e8e8;
+}
+
+.codeLang {
+  background: #fafafa;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #999;
+  border-bottom: 1px solid #e8e8e8;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  text-transform: uppercase;
+}

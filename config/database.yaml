@@ -1,0 +1,21 @@
+# ====== 数据库连接配置 ======
+database:
+  host: localhost
+  port: 3306
+  user: sweep_user
+  password: sweep_user_password
+  database: smart_sweep
+  charset: utf8mb4
+  pool_size: 5
+  pool_recycle: 3600
+  echo: false    # 设为 true 可调试 SQL
+
+# ====== JWT 认证配置 ======
+jwt:
+  secret_key: "smart-sweep-jwt-secret-key-change-in-production"
+  algorithm: HS256
+  access_token_expire_minutes: 1440   # 24 小时
+
+# ====== 密码哈希配置 ======
+password:
+  bcrypt_rounds: 12

@@ -1,0 +1,38 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-top: 8px;
+}
+
+.logo {
+  font-size: 48px;
+  color: #1677ff;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin-bottom: 4px !important;
+}
+
+.footer {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}

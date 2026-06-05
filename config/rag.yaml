@@ -1,0 +1,31 @@
+# RAG 混合检索 + RRF + 重排序配置（Milvus 向量库）
+
+milvus:
+  db_path: "milvus.db"             # Milvus Lite 数据库路径（相对项目根目录）
+  collection_name: "rag_collection" # 集合名称
+
+hybrid_search:
+  enabled: true                    # 是否启用混合检索（false = 纯 Dense）
+  dense_k: 20                      # Dense（向量）检索候选数
+  sparse_k: 20                     # Sparse（BM25）检索候选数
+  rrf_k: 60                        # RRF 融合常数
+  final_k: 8                       # 最终返回文档数
+
+# ====== 查询优化 ======
+query_processing:
+  multi_query:
+    enabled: true                  # 是否启用 Multi-Query 改写
+    n_variants: 3                  # 生成的查询变体数量（含原始查询共 N 个）
+  hyde:
+    enabled: false                 # 是否启用 HyDE（假设性文档嵌入）
+    # 注意：HyDE 每次检索需额外调用一次 LLM，成本较高，建议仅在 hard 场景开启
+
+reranker:
+  enabled: true                   # 是否启用重排序
+  backend: "dashscope"            # 后端: "dashscope" | "flagembedding"
+  model_name: "gte-rerank-v2"     # 模型名
+  max_input_docs: 25              # Reranker 最多接受的输入文档数（Multi-Query 合并去重后可能很多）
+
+# ====== 知识库管理 ======
+management:
+  delete_requires_confirmation: true  # 删除操作是否需要二次确认（CLI 工具使用）

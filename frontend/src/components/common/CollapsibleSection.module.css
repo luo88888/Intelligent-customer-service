@@ -1,0 +1,44 @@
+.section {
+  margin: 4px 0;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 8px 12px !important;
+  font-size: 13px;
+  color: #666;
+  border-radius: 0 !important;
+}
+
+.header:hover {
+  background: #f0f0f0 !important;
+}
+
+.icon {
+  margin-right: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.title {
+  flex: 1;
+}
+
+.body {
+  padding: 12px;
+  border-top: 1px solid #e8e8e8;
+  background: #ffffff;
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: break-word;
+  max-height: 360px;
+  overflow-y: auto;
+}

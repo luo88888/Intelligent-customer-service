@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
 import random
 import os
+import contextvars
 
 
 from rag.rag_service import RAGSummarizeService
@@ -11,6 +12,25 @@ from utils.logger_handler import logger
 
 rag_service = RAGSummarizeService()
 
+# HACK: 跨线程的潜在坑点，如果你的 Agent 在执行 RAG 检索时，使用了 loop.run_in_executor 将同步阻塞代码丢到了线程池中执行，需要注意：contextvars 默认不会自动跨越线程边界传递。如果在线程池中的代码调用了 _get_rag_cache()，可能会拿到 None 或报错。这种情况下，需要使用 contextvars.copy_context() 手动将上下文传递过去。
+# 上下文隔离的 RAG 结果缓存：每个请求/Agent 执行上下文拥有独立的列表，
+# 通过 ContextVar 实现，杜绝多用户并发场景下的数据交叉污染。
+# 初始值为 None，由 execute_stream 在开始执行时设置为空列表。
+_rag_results_ctx: contextvars.ContextVar[list[dict] | None] = \
+    contextvars.ContextVar("rag_results", default=None)
+
+
+def _get_rag_cache() -> list[dict]:
+    """获取当前执行上下文的 RAG 结果缓存列表
+
+    若当前上下文尚未初始化缓存，自动创建空列表并绑定到当前 ContextVar。
+    """
+    cache = _rag_results_ctx.get()
+    if cache is None:
+        cache = []
+        _rag_results_ctx.set(cache)
+    return cache
+
 user_ids = ["1001", "1002", "1003", "1004", "1005", "1006"]
 month_arr = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
 month_arr = ["2025-" + month for month in month_arr]
@@ -19,8 +39,18 @@ external_data = {}
 
 @tool(description="检索参考资料，以纯字符串格式返回")
 def rag_summarize(query: str) -> str:
-    """调用RAG服务进行摘要"""
-    return rag_service.rag_summarize(query)
+    """调用RAG服务进行摘要，同时将检索到的文档存入当前上下文缓存"""
+    answer, docs = rag_service.rag_summarize_with_docs(query)
+    _get_rag_cache().append({"query": query, "docs": docs})
+    return answer
+
+
+def drain_rag_results() -> list[dict]:
+    """消费并返回当前上下文自上次 drain 以来积累的 RAG 检索结果"""
+    cache = _get_rag_cache()
+    results = list(cache)
+    cache.clear()
+    return results
 
 
 # TODO: 实现获取天气的功能

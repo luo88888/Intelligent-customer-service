@@ -1,6 +1,10 @@
+.env
+*.db
 /TODO.md
 *.code-workspace
+md5.txt
 
 /chroma_db/
 /logs/
 __pycache__/
+ragas_main/

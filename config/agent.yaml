@@ -1,4 +1,15 @@
-chat_model_name: qwen-plus
+chat_model_provider: deepseek
+chat_model_name: deepseek-v4-flash
+embedding_model_provider: qwen
 embedding_model_name: text-embedding-v4
 
 external_data_path: data/external/records.csv
+
+# ====== 对话记忆模块配置 ======
+memory:
+  threshold: 1000                # 未摘要消息总字符数超过此阈值时触发摘要
+  keep_recent_count: 6           # 摘要时保留最近多少条消息不参与摘要
+  recent_context_count: 10       # get_context() 返回的最近未摘要消息数量
+  summary_prompt_path: prompts/memory_summary_prompt.txt  # 摘要提示词文件路径（为空则使用默认提示词）
+  llm_provider: deepseek         # 用于摘要的 LLM 提供商
+  llm_model: deepseek-v4-flash   # 用于摘要的 LLM 模型名

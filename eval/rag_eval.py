@@ -130,10 +130,10 @@ def eval_rag(
 
     print('数据生成完毕，开始评估...')
     metrics = [
-        # AnswerRelevancy(strictness=1),
-        # Faithfulness(),
+        AnswerRelevancy(strictness=1),
+        Faithfulness(),
         ContextPrecision(),   # 上下文精度最耗时，检索文档串行调用 LLM N 次
-        # ContextRecall(),
+        ContextRecall(),
     ]
     results = evaluate(
         dataset=dataset,

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { useChatStore } from '../stores/chatStore'
 import * as messagesApi from '../api/messages'
+import { ApiError } from '../api/client'
 import { parseSSEBuffer } from '../utils/sseParser'
 
 export function useSSEStream() {
@@ -26,8 +27,23 @@ export function useSSEStream() {
         })
 
         if (!response.ok || !response.body) {
-          const errorText = await response.text().catch(() => '未知错误')
-          store.setError(`请求失败: ${response.status} ${errorText}`)
+          // 尝试解析响应体中的错误信息（尤其是 429 的 reject_message）
+          let errorText = '未知错误'
+          let rejectMessage: string | null = null
+          try {
+            const errorBody = JSON.parse(await response.text())
+            errorText = errorBody.message || errorBody.detail || `HTTP ${response.status}`
+            rejectMessage = errorBody.reject_message || errorBody.message || null
+          } catch {
+            errorText = `请求失败: ${response.status}`
+          }
+
+          // 429 错误使用 setRejectError 以在聊天区域显示持久化横幅
+          if (response.status === 429 && rejectMessage) {
+            store.setRejectError(rejectMessage)
+          } else {
+            store.setError(errorText)
+          }
           return
         }
 
@@ -60,6 +76,16 @@ export function useSSEStream() {
               case 'rag_docs':
                 store.appendRAGDocs(event.query, event.docs)
                 break
+              case 'error': {
+                // 流内错误事件（如上游 LLM 返回 429）
+                const { reject_message: sseRejectMsg, message: sseMsg } = event.error
+                if (event.error.type === 'token_budget_exceeded' && sseRejectMsg) {
+                  store.setRejectError(sseRejectMsg)
+                } else {
+                  store.setError(sseRejectMsg || sseMsg || '服务暂时不可用')
+                }
+                return  // 错误后终止读取
+              }
               case 'stop':
                 // 防重入：实时读取 isStreaming 而非用捕获的 store 快照
                 if (useChatStore.getState().isStreaming) {
@@ -76,9 +102,14 @@ export function useSSEStream() {
         }
       } catch (err) {
         if (!abortController.signal.aborted) {
-          const errorMsg =
-            err instanceof Error ? err.message : '网络请求失败'
-          store.setError(errorMsg)
+          // 检查 ApiError 中是否有 rejectMessage（如 429）
+          if (err instanceof ApiError && err.rejectMessage) {
+            store.setRejectError(err.rejectMessage)
+          } else {
+            const errorMsg =
+              err instanceof Error ? err.message : '网络请求失败'
+            store.setError(errorMsg)
+          }
         }
       }
     },

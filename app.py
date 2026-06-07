@@ -5,7 +5,7 @@
 """
 
 import dotenv
-dotenv.load_dotenv()
+dotenv.load_dotenv(override=True)
 
 import warnings
 warnings.filterwarnings("ignore", message=".*__path__.*")

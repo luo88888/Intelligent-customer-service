@@ -18,6 +18,9 @@ netstat -ano | findstr :8000
 # 记下最后一列的 PID，然后：
 taskkill //F //PID <PID>
 """
+import dotenv
+dotenv.load_dotenv(override=True)
+
 import uuid
 import time
 import json
@@ -25,7 +28,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Query, status as http_status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -50,15 +53,19 @@ from services.conversation_service import ConversationService
 from services.chat_service import ChatService
 from agent.react_agent import ReactAgent
 from agent.ConversationMemory import ConversationMemory
+from utils.token_budget import TokenBudgetExceededError, check_budget_or_raise
 
 
 # ====== 应用生命周期 ======
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用启动时初始化数据库表"""
+    """应用启动时初始化数据库表，关闭前持久化 token 用量"""
     init_db()
     yield
+    # 应用关闭前，将 token 用量写入文件
+    from utils.token_budget import force_save
+    force_save()
 
 
 app = FastAPI(title="智扫通 Agent API", lifespan=lifespan)
@@ -71,6 +78,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ====== 全局异常处理器 ======
+
+@app.exception_handler(TokenBudgetExceededError)
+async def token_budget_exceeded_handler(request, exc: TokenBudgetExceededError):
+    """Token 预算超限异常 → HTTP 429 响应"""
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={
+            "error": "token_budget_exceeded",
+            "message": exc.message,
+            "reject_message": exc.message,  # 前端用于展示的拒绝信息
+            "detail": exc.message,          # 兼容前端 ApiError 的 detail 字段
+            "usage": exc.usage,
+        },
+    )
 
 
 # ====== OpenAI 兼容接口（Open WebUI） ======
@@ -133,6 +157,9 @@ async def chat_completions(request: ChatCompletionRequest):
     - 解析完整的 messages 列表 → ConversationMemory，实现多轮对话上下文感知
     - 每次请求创建独立的 ReactAgent 实例，杜绝多用户上下文污染
     """
+    # 全局 token 预算检查
+    check_budget_or_raise()
+
     memory, user_query = _build_memory_from_messages(request.messages)
     agent = ReactAgent(memory=memory)
 
@@ -304,6 +331,9 @@ def send_message(
     - stream=false: 返回完整的 MessageSendResponse JSON
     - stream=true: 返回 SSE (text/event-stream) 流式响应
     """
+    # 全局 token 预算检查
+    check_budget_or_raise()
+
     # 校验会话归属
     conv_svc = ConversationService(db)
     conv_svc.get_conversation(conversation_id, current_user.id)
@@ -339,48 +369,96 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
         chat_id = f"chatcmpl-{uuid.uuid4().hex}"
         created_time = int(time.time())
 
-        for chunk in chat_svc.execute_and_persist_stream(conversation_id, content):
-            if isinstance(chunk, dict) and chunk.get("type") == "text":
-                # 构建 delta，携带 subtype 及可能的 tool_calls/tool_name
-                delta: dict = {
-                    "content": chunk["content"],
-                    "subtype": chunk.get("subtype", "answer"),
-                }
-                if "tool_calls" in chunk:
-                    delta["tool_calls"] = chunk["tool_calls"]
-                if "tool_name" in chunk:
-                    delta["tool_name"] = chunk["tool_name"]
+        try:
+            for chunk in chat_svc.execute_and_persist_stream(conversation_id, content):
+                if isinstance(chunk, dict) and chunk.get("type") == "text":
+                    # 构建 delta，携带 subtype 及可能的 tool_calls/tool_name
+                    delta: dict = {
+                        "content": chunk["content"],
+                        "subtype": chunk.get("subtype", "answer"),
+                    }
+                    if "tool_calls" in chunk:
+                        delta["tool_calls"] = chunk["tool_calls"]
+                    if "tool_name" in chunk:
+                        delta["tool_name"] = chunk["tool_name"]
 
-                data = {
-                    "id": chat_id,
-                    "object": "chat.completion.chunk",
-                    "created": created_time,
-                    "model": "smart-sweep-agent",
-                    "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
-                }
-                yield _format_sse_payload(data)
-                await asyncio.sleep(0)
+                    data = {
+                        "id": chat_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_time,
+                        "model": "smart-sweep-agent",
+                        "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+                    }
+                    yield _format_sse_payload(data)
+                    await asyncio.sleep(0)
 
-            elif isinstance(chunk, dict) and chunk.get("type") == "rag_docs":
-                # 透传 query 和 docs 字段
-                docs_data = {
-                    "id": chat_id,
-                    "object": "chat.completion.chunk",
-                    "created": created_time,
-                    "model": "smart-sweep-agent",
-                    "choices": [{
-                        "index": 0,
-                        "delta": {
-                            "rag_docs": {
-                                "query": chunk.get("query", ""),
-                                "docs": chunk.get("docs", []),
-                            }
-                        },
-                        "finish_reason": None,
-                    }],
-                }
-                yield _format_sse_payload(docs_data)
-                await asyncio.sleep(0)
+                elif isinstance(chunk, dict) and chunk.get("type") == "rag_docs":
+                    # 透传 query 和 docs 字段
+                    docs_data = {
+                        "id": chat_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_time,
+                        "model": "smart-sweep-agent",
+                        "choices": [{
+                            "index": 0,
+                            "delta": {
+                                "rag_docs": {
+                                    "query": chunk.get("query", ""),
+                                    "docs": chunk.get("docs", []),
+                                }
+                            },
+                            "finish_reason": None,
+                        }],
+                    }
+                    yield _format_sse_payload(docs_data)
+                    await asyncio.sleep(0)
+
+                elif isinstance(chunk, dict) and chunk.get("type") == "error":
+                    # 流内错误（如上游 LLM 返回 429）：通过 SSE 发送错误事件
+                    error_data = {
+                        "id": chat_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_time,
+                        "model": "smart-sweep-agent",
+                        "choices": [{
+                            "index": 0,
+                            "delta": {
+                                "error": {
+                                    "type": chunk.get("error", "agent_error"),
+                                    "message": chunk.get("message", ""),
+                                    "reject_message": chunk.get("reject_message", ""),
+                                }
+                            },
+                            "finish_reason": "error",
+                        }],
+                    }
+                    yield _format_sse_payload(error_data)
+                    await asyncio.sleep(0)
+                    return  # 错误后终止流
+
+        except Exception as e:
+            # 兜底：生成器内未预见的异常，通过 SSE 发送错误事件
+            error_data = {
+                "id": chat_id,
+                "object": "chat.completion.chunk",
+                "created": created_time,
+                "model": "smart-sweep-agent",
+                "choices": [{
+                    "index": 0,
+                    "delta": {
+                        "error": {
+                            "type": "server_error",
+                            "message": str(e),
+                            "reject_message": "服务暂时不可用，请稍后重试",
+                        }
+                    },
+                    "finish_reason": "error",
+                }],
+            }
+            try:
+                yield _format_sse_payload(error_data)
+            except Exception:
+                pass  # 如果连 SSE 写入都失败了，放弃
 
         # 发送结束标志
         final_data = {
@@ -403,6 +481,31 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ====== 管理接口 ======
+
+@app.get("/api/admin/token-usage")
+def get_token_usage():
+    """查询当前全局 token 使用统计"""
+    from utils.token_budget import get_tracker
+    return get_tracker().get_usage()
+
+
+@app.post("/api/admin/token-usage/reset")
+def reset_token_usage():
+    """重置全局 token 计数器为零"""
+    from utils.token_budget import get_tracker
+    get_tracker().reset()
+    return {"status": "ok", "message": "Token budget counter has been reset."}
+
+
+@app.post("/api/admin/token-usage/save")
+def force_save_token_usage():
+    """强制将 token 用量立即写入持久化文件"""
+    from utils.token_budget import get_tracker
+    get_tracker().force_save()
+    return {"status": "ok", "message": "Token usage has been saved to file."}
 
 
 if __name__ == "__main__":

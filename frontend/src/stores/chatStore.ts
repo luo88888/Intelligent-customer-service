@@ -14,6 +14,7 @@ interface ChatState {
   isStreaming: boolean
   streamingConversationId: number | null
   error: string | null
+  rejectMessage: string | null  // 429 / token 超限时由后端返回的拒绝信息
 
   loadMessages: (conversationId: number) => Promise<void>
   clearMessages: () => void
@@ -27,6 +28,8 @@ interface ChatState {
   finishStream: (messageId?: number) => void
   abortStream: () => void
   setError: (error: string | null) => void
+  setRejectError: (rejectMessage: string) => void  // 设置 token 超限错误
+  clearRejectMessage: () => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -35,9 +38,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamingConversationId: null,
   error: null,
+  rejectMessage: null,
 
   loadMessages: async (conversationId: number) => {
-    set({ messages: [], streamMessages: [], error: null })
+    set({ messages: [], streamMessages: [], error: null, rejectMessage: null })
     try {
       const res = await messagesApi.getMessages(conversationId)
       set({ messages: res.messages })
@@ -56,6 +60,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingConversationId: conversationId,
       streamMessages: [],
       error: null,
+      rejectMessage: null,
     })
   },
 
@@ -152,5 +157,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setError: (error: string | null) => {
     set({ error, isStreaming: false })
+  },
+
+  setRejectError: (rejectMessage: string) => {
+    set({
+      error: rejectMessage,
+      rejectMessage,
+      isStreaming: false,
+    })
+  },
+
+  clearRejectMessage: () => {
+    set({ rejectMessage: null })
   },
 }))

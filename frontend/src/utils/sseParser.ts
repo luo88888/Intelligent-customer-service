@@ -38,6 +38,14 @@ export function parseSSELine(line: string): ParsedSSEEvent {
       }
     }
 
+    // 错误事件
+    if (delta.error) {
+      return {
+        type: 'error',
+        error: delta.error,
+      }
+    }
+
     // 根据 subtype 判断
     if (delta.subtype === 'thinking') {
       return {

@@ -40,6 +40,7 @@ export interface SSEChunkDelta {
     query: string
     docs: string[]
   }
+  error?: SSEError
 }
 
 export interface SSEChunkChoice {
@@ -56,11 +57,19 @@ export interface SSEChunk {
   choices: SSEChunkChoice[]
 }
 
+/** SSE 错误事件信息 */
+export interface SSEError {
+  type: string
+  message: string
+  reject_message: string
+}
+
 /** 解析后的 SSE 事件 */
 export type ParsedSSEEvent =
   | { type: 'thinking'; content: string; toolCalls: ToolCall[] }
   | { type: 'tool_result'; content: string; toolName: string }
   | { type: 'answer'; content: string }
   | { type: 'rag_docs'; query: string; docs: string[] }
+  | { type: 'error'; error: SSEError }
   | { type: 'stop' }
   | { type: 'unknown' }

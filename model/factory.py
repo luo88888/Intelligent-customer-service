@@ -76,7 +76,13 @@ def create_chat_model(
 
     module_path = _CHAT_PROVIDERS[provider]
     _create = _import_provider(module_path, "create_chat_model")
-    return _create(model_name=model_name, **kwargs)
+    model = _create(model_name=model_name, **kwargs)
+
+    # 附加全局 token 预算回调（追踪所有 LLM 调用的 token 消耗）
+    from utils.token_budget import get_token_budget_callback  # noqa: E402
+    model.callbacks = (model.callbacks or []) + [get_token_budget_callback()]
+
+    return model
 
 
 def create_embedding_model(

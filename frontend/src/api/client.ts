@@ -12,12 +12,14 @@ export function setUnauthorizedHandler(handler: () => void): void {
 export class ApiError extends Error {
   status: number
   detail: string
+  rejectMessage: string | null
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, rejectMessage?: string) {
     super(detail)
     this.name = 'ApiError'
     this.status = status
     this.detail = detail
+    this.rejectMessage = rejectMessage || null
   }
 }
 
@@ -49,7 +51,10 @@ async function request<T>(
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({ detail: '请求失败' }))
-    throw new ApiError(response.status, errorBody.detail || `HTTP ${response.status}`)
+    // 优先使用后端返回的 message（reject_message），其次 detail，最后用 HTTP 状态码兜底
+    const detail = errorBody.message || errorBody.detail || `HTTP ${response.status}`
+    const rejectMessage = errorBody.reject_message || errorBody.message || null
+    throw new ApiError(response.status, detail, rejectMessage)
   }
 
   return response.json()
@@ -80,7 +85,10 @@ async function streamRequest(
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({ detail: '请求失败' }))
-    throw new ApiError(response.status, errorBody.detail || `HTTP ${response.status}`)
+    // 优先使用后端返回的 message（reject_message），其次 detail，最后用 HTTP 状态码兜底
+    const detail = errorBody.message || errorBody.detail || `HTTP ${response.status}`
+    const rejectMessage = errorBody.reject_message || errorBody.message || null
+    throw new ApiError(response.status, detail, rejectMessage)
   }
 
   return response

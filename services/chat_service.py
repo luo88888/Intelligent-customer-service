@@ -165,7 +165,10 @@ class ChatService:
 
         Raises:
             ValueError: 会话不存在
+            TokenBudgetExceededError: 全局 token 预算超限
         """
+        from utils.token_budget import TokenBudgetExceededError
+
         conv, memory = self.load_conversation_memory(conversation_id)
 
         # 持久化用户消息
@@ -181,13 +184,22 @@ class ChatService:
         all_chunks: list[dict] = []
         final_text = ""
         rag_docs = []
-        for chunk in agent.execute_stream(user_content):
-            all_chunks.append(chunk)
-            if isinstance(chunk, dict) and chunk.get("type") == "text":
-                final_text += chunk["content"]
-            elif isinstance(chunk, dict) and chunk.get("type") == "rag_docs":
-                rag_docs.append(chunk)
-
+        try:
+            for chunk in agent.execute_stream(user_content):
+                all_chunks.append(chunk)
+                if isinstance(chunk, dict) and chunk.get("type") == "text":
+                    final_text += chunk["content"]
+                elif isinstance(chunk, dict) and chunk.get("type") == "rag_docs":
+                    rag_docs.append(chunk)
+        except Exception as e:
+            # 检查是否为上游 LLM 的 token/rate-limit 错误（如 DeepSeek 429）
+            error_msg = str(e)
+            if "429" in error_msg or "rate" in error_msg.lower() or "token" in error_msg.lower():
+                raise TokenBudgetExceededError(
+                    config=__import__('utils.token_budget').token_budget.get_tracker().config,
+                    total_tokens=__import__('utils.token_budget').token_budget.get_tracker().get_usage()["total_tokens"],
+                ) from e
+            raise
 
         # 将 memory 的最新状态同步到数据库
         self.persist_state(conversation_id, memory)
@@ -213,6 +225,9 @@ class ChatService:
         与 execute_and_persist 逻辑相同，但以生成器方式逐块返回 Agent 输出，
         适用于 SSE 流式响应场景。流结束后将中间块一并持久化。
 
+        若 Agent 执行过程中发生 token/rate-limit 错误，会先 yield error 类型的
+        chunk 再抛出异常，确保前端能通过 SSE 收到错误信息。
+
         Args:
             conversation_id: 会话 ID
             user_content: 用户发送的消息文本
@@ -220,6 +235,8 @@ class ChatService:
         Yields:
             dict: 包含 type 和 content 的分块字典
         """
+        from utils.token_budget import TokenBudgetExceededError
+
         conv, memory = self.load_conversation_memory(conversation_id)
 
         # 持久化用户消息
@@ -234,11 +251,36 @@ class ChatService:
         # 流式收集并产出
         all_chunks: list[dict] = []
         final_text = ""
-        for chunk in agent.execute_stream(user_content):
-            yield chunk
-            all_chunks.append(chunk)
-            if isinstance(chunk, dict) and chunk.get("type") == "text":
-                final_text += chunk["content"]
+        try:
+            for chunk in agent.execute_stream(user_content):
+                yield chunk
+                all_chunks.append(chunk)
+                if isinstance(chunk, dict) and chunk.get("type") == "text":
+                    final_text += chunk["content"]
+        except Exception as e:
+            # 检查是否为上游 LLM 的 token/rate-limit 错误（如 DeepSeek 429）
+            error_msg = str(e)
+            if "429" in error_msg or "rate" in error_msg.lower() or "token" in error_msg.lower():
+                tracker = __import__('utils.token_budget').token_budget.get_tracker()
+                budget_error = TokenBudgetExceededError(
+                    config=tracker.config,
+                    total_tokens=tracker.get_usage()["total_tokens"],
+                )
+                yield {
+                    "type": "error",
+                    "error": "token_budget_exceeded",
+                    "message": budget_error.message,
+                    "reject_message": budget_error.message,
+                }
+                raise budget_error from e
+            else:
+                yield {
+                    "type": "error",
+                    "error": "agent_error",
+                    "message": f"Agent 执行错误: {error_msg}",
+                    "reject_message": f"服务暂时不可用，请稍后重试: {error_msg[:100]}",
+                }
+                raise
 
         # 将 memory 的最新状态同步到数据库
         self.persist_state(conversation_id, memory)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { Typography, App } from 'antd'
+import { Typography, App, Alert } from 'antd'
 import { RobotOutlined, MessageOutlined, LoadingOutlined } from '@ant-design/icons'
 import { useChatStore } from '../../stores/chatStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -19,7 +19,9 @@ export default function ChatArea() {
   const streamMessages = useChatStore((s) => s.streamMessages)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const error = useChatStore((s) => s.error)
+  const rejectMessage = useChatStore((s) => s.rejectMessage)
   const setError = useChatStore((s) => s.setError)
+  const clearRejectMessage = useChatStore((s) => s.clearRejectMessage)
   const loadMessages = useChatStore((s) => s.loadMessages)
   const activeConversationId = useConversationStore((s) => s.activeConversationId)
   const fetchConversations = useConversationStore((s) => s.fetchConversations)
@@ -123,6 +125,23 @@ export default function ChatArea() {
 
   return (
     <div className={styles.chatContainer}>
+      {/* token 超限错误横幅（持久化显示，可关闭） */}
+      {rejectMessage && (
+        <Alert
+          message="请求被拒绝"
+          description={rejectMessage}
+          type="warning"
+          showIcon
+          closable
+          onClose={clearRejectMessage}
+          style={{
+            borderRadius: 0,
+            borderLeft: 0,
+            borderRight: 0,
+          }}
+        />
+      )}
+
       {/* 消息列表 */}
       <div
         className={styles.messageList}

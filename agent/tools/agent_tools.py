@@ -39,7 +39,14 @@ external_data = {}
 
 @tool(description="检索参考资料，以纯字符串格式返回")
 def rag_summarize(query: str) -> str:
-    """调用RAG服务进行摘要，同时将检索到的文档存入当前上下文缓存"""
+    """调用 RAG 服务进行检索摘要，并将检索到的文档存入当前上下文缓存。
+
+    Args:
+        query: 检索词，可以是自然语言，也可以是多个关键词的组合。
+
+    Returns:
+        基于检索文档生成的摘要文本。
+    """
     answer, docs = rag_service.rag_summarize_with_docs(query)
     _get_rag_cache().append({"query": query, "docs": docs})
     return answer
@@ -56,25 +63,44 @@ def drain_rag_results() -> list[dict]:
 # TODO: 实现获取天气的功能
 @tool(description="获取指定城市的天气，以纯字符串格式返回")
 def get_weather(city: str) -> str:
-    """获取城市的天气"""
+    """获取指定城市的天气信息。
+
+    Args:
+        city: 城市名称，如"北京"、"上海"、"深圳"等。
+
+    Returns:
+        包含天气状况、温度、湿度、风力、AQI 及降雨信息的字符串。
+    """
     return f"{city}的天气为晴天，18~25摄氏度，空气湿度为60%，南风2级，AQI为21，最近6小时无雨。"
 
 
 @tool(description="获取用户所在城市的名称，以纯字符串格式返回")
 def get_user_city() -> str:
-    """获取用户所在城市的名称"""
+    """获取用户所在城市的名称。
+
+    Returns:
+        用户所在的城市名称。
+    """
     return random.choice(["北京", "上海", "广州", "深圳"])
    
    
 @tool(description="获取用户ID，以纯字符串格式返回")
 def get_user_id() -> str:
-    """获取用户ID"""
+    """获取当前用户的唯一标识符。
+
+    Returns:
+        用户 ID。
+    """
     return random.choice(user_ids)
 
 
 @tool(description="获取当前月份，以纯字符串格式返回")
 def get_current_month() -> str:
-    """获取当前月份"""
+    """获取当前月份。
+
+    Returns:
+        当前月份，格式为 YYYY-MM。
+    """
     return random.choice(month_arr)
 
 
@@ -126,9 +152,18 @@ def generate_external_data() -> None:
                 }
 
 
-# @tool(description="从外部系统获取指定用户在指定月份的使用记录，以纯字符串格式返回，如果未找到记录则返回空字符串")
+@tool(description="从外部系统获取指定用户在指定月份的使用记录，以纯字符串格式返回，如果未找到记录则返回空字符串")
 def fetch_external_data(user_id: str, month: str) -> str:
-    """获取指定用户的指定月份的使用记录"""
+    """从外部 CSV 数据源获取指定用户在指定月份的使用记录。
+
+    Args:
+        user_id: 用户 ID。
+        month: 查询月份，格式为 YYYY-MM。
+
+    Returns:
+        包含特征、效率、耗材、对比等的字符串。
+        如果未找到对应记录则返回空字符串。
+    """
     generate_external_data()
     try:
         return external_data[user_id][month]
@@ -139,7 +174,8 @@ def fetch_external_data(user_id: str, month: str) -> str:
 
 @tool(description="无入参，无返回值，调用后触发中间件自动为报告生成的场景动态注入上下文信息，为后续提示词切换提供上下文信息")
 def fill_context_for_report():
-    """为报告生成的场景动态注入上下文信息"""
+    """触发报告生成模式的上下文注入，调用本工具后切换到报告生成模式。
+    """
     pass
 
 

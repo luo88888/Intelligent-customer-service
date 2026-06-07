@@ -7,9 +7,18 @@ external_data_path: data/external/records.csv
 
 # ====== 对话记忆模块配置 ======
 memory:
-  threshold: 1000                # 未摘要消息总字符数超过此阈值时触发摘要
+  threshold: 30000               # 未摘要消息总字符数超过此阈值时触发摘要
   keep_recent_count: 6           # 摘要时保留最近多少条消息不参与摘要
-  recent_context_count: 10       # get_context() 返回的最近未摘要消息数量
+  recent_context_count: 20       # get_context() 返回的最近未摘要消息最大数量，主要用来预防总结摘要失败导致未摘要的消息过多
   summary_prompt_path: prompts/memory_summary_prompt.txt  # 摘要提示词文件路径（为空则使用默认提示词）
   llm_provider: deepseek         # 用于摘要的 LLM 提供商
   llm_model: deepseek-v4-flash   # 用于摘要的 LLM 模型名
+
+# ====== 全局 Token 预算配置 ======
+token_budget:
+  enabled: true                    # 是否启用全局 token 预算限制
+  limit: 5000000                   # 累计 token 上限（达到后拒绝新请求）
+  reject_message: "Token budget exceeded. Please try again later."
+  http_status: 429                 # 拒绝时的 HTTP 状态码
+  persist_path: output/token_budget.json  # token 用量持久化文件路径（相对于项目根目录）
+  save_interval: 10000             # token 每增加此数量时更新文件（避免频繁写入）

@@ -17,14 +17,14 @@ query_processing:
     enabled: true                  # 是否启用 Multi-Query 改写
     n_variants: 3                  # 生成的查询变体数量（含原始查询共 N 个）
   hyde:
-    enabled: false                 # 是否启用 HyDE（假设性文档嵌入）
+    enabled: false                  # 是否启用 HyDE（假设性文档嵌入）
     # 注意：HyDE 每次检索需额外调用一次 LLM，成本较高，建议仅在 hard 场景开启
 
 reranker:
   enabled: true                   # 是否启用重排序
   backend: "dashscope"            # 后端: "dashscope" | "flagembedding"
-  model_name: "gte-rerank-v2"     # 模型名
-  max_input_docs: 25              # Reranker 最多接受的输入文档数（Multi-Query 合并去重后可能很多）
+  model_name: "qwen3-rerank"     # 模型名 "qwen3-rerank" | "gte-rerank-v2"
+  max_input_docs: 50              # Reranker 最多接受的输入文档数（Multi-Query 合并去重后可能很多）
 
 # ====== 知识库管理 ======
 management:

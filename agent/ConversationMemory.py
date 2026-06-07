@@ -21,7 +21,7 @@ from utils.path_tool import get_abs_path
 from model.factory import create_chat_model
 
 DEFAULT_SUMMARY_PROMPT = """\
-请对以下对话历史进行简洁摘要，保留关键信息，用中文输出，不超过 500 字。
+请对以下对话历史进行简洁摘要，保留关键信息，用中文输出，不超过 1000 字。
 
 === 已有摘要 ===
 {existing_summary}

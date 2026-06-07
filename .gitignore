@@ -29,6 +29,9 @@ milvus.db/
 # === 评估结果（自动生成） ===
 eval/result/*.csv
 
+# === 外部仓库 / 子项目（ragas_main，仅用于方便查看源码，未使用） ===
+ragas_main/
+
 # === 编辑器 & 项目元数据 ===
 *.code-workspace
 /TODO.md

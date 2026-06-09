@@ -18,7 +18,7 @@ def create_chat_model(
     """创建 OpenAI 对话模型
 
     Args:
-        model_name: 模型名称（gpt-5.4-nano, gpt-4o, gpt-4o-mini 等）
+        model_name: 模型名称（gpt-5.4-nano, gpt-5.4, gpt-4o 等）
         temperature: 采样温度
         **kwargs: 传递给 ChatOpenAI 的额外参数
 

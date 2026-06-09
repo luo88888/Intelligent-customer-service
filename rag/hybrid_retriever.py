@@ -147,6 +147,7 @@ class HybridRetriever:
             f"[HybridRetriever] 合并去重: {before_dedup} → {len(all_docs)} 篇"
         )
 
+        # TODO: 优先级 5，rerank_enabled=False 时，直接截断到 final_k
         # Step 4: 截断 → 精排
         if len(all_docs) > self.max_rerank_input:
             logger.info(

@@ -37,3 +37,8 @@ ragas_main/
 /TODO.md
 md5.txt
 *.db
+
+# === 其他 ===
+坑.md
+nginx配置_server.conf
+Systemd_server.bash

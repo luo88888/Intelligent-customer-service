@@ -163,9 +163,15 @@ async def chat_completions(request: ChatCompletionRequest):
     memory, user_query = _build_memory_from_messages(request.messages)
     agent = ReactAgent(memory=memory)
 
-    chunks = []
-    for chunk in agent.execute_stream(user_query):
-        chunks.append(chunk)
+    # 将同步的 Agent 执行放到线程池中，避免阻塞事件循环
+    def _run_agent():
+        chunks = []
+        for chunk in agent.execute_stream(user_query):
+            chunks.append(chunk)
+        return chunks
+
+    loop = asyncio.get_event_loop()
+    chunks = await loop.run_in_executor(None, _run_agent)
 
     text_chunks = [
         c["content"] for c in chunks
@@ -359,7 +365,15 @@ def _handle_non_stream_message(conversation_id: int, content: str, db: Session) 
 
 
 def _handle_stream_message(conversation_id: int, content: str, db: Session):
-    """处理流式消息：以 SSE 格式逐块返回 Agent 输出"""
+    """处理流式消息：以 SSE 格式逐块返回 Agent 输出
+
+    将同步的 Agent 生成器放到线程池中执行，通过 queue.Queue 将 chunk
+    传递回事件循环线程，确保 LLM 调用的同步 I/O 不会阻塞事件循环，
+    从而实现多用户并发处理。
+    """
+    import queue as sync_queue
+    from functools import partial
+
     chat_svc = ChatService(db)
 
     def _format_sse_payload(data: dict) -> str:
@@ -369,10 +383,65 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
         chat_id = f"chatcmpl-{uuid.uuid4().hex}"
         created_time = int(time.time())
 
+        # 线程安全队列：同步 Agent 在子线程中将 chunk 放入，
+        # 事件循环线程通过 run_in_executor 轮询取出，每次 await 都会让出控制权
+        chunk_queue: sync_queue.Queue = sync_queue.Queue()
+
+        def run_sync():
+            """在子线程中运行同步 Agent 生成器，将结果写入队列"""
+            try:
+                for chunk in chat_svc.execute_and_persist_stream(conversation_id, content):
+                    chunk_queue.put(("chunk", chunk))
+                chunk_queue.put(("done", None))
+            except Exception as e:
+                chunk_queue.put(("error", e))
+
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, run_sync)
+
         try:
-            for chunk in chat_svc.execute_and_persist_stream(conversation_id, content):
+            while True:
+                # 在线程池中阻塞等待队列数据（timeout=0.05s），
+                # await 使每次轮询都让出事件循环，不会阻塞其他请求
+                try:
+                    tag, value = await loop.run_in_executor(
+                        None, partial(chunk_queue.get, timeout=0.05)
+                    )
+                except sync_queue.Empty:
+                    await asyncio.sleep(0)
+                    continue
+
+                if tag == "done":
+                    break
+
+                if tag == "error":
+                    # 子线程中未预见的异常（execute_and_persist_stream 内部
+                    # 可预见的错误已通过 error 类型 chunk 产出）
+                    error_data = {
+                        "id": chat_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_time,
+                        "model": "smart-sweep-agent",
+                        "choices": [{
+                            "index": 0,
+                            "delta": {
+                                "error": {
+                                    "type": "server_error",
+                                    "message": str(value),
+                                    "reject_message": "服务暂时不可用，请稍后重试",
+                                }
+                            },
+                            "finish_reason": "error",
+                        }],
+                    }
+                    yield _format_sse_payload(error_data)
+                    await asyncio.sleep(0)
+                    return
+
+                # tag == "chunk": 正常处理 Agent 产出的 chunk
+                chunk = value
+
                 if isinstance(chunk, dict) and chunk.get("type") == "text":
-                    # 构建 delta，携带 subtype 及可能的 tool_calls/tool_name
                     delta: dict = {
                         "content": chunk["content"],
                         "subtype": chunk.get("subtype", "answer"),
@@ -393,7 +462,6 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
                     await asyncio.sleep(0)
 
                 elif isinstance(chunk, dict) and chunk.get("type") == "rag_docs":
-                    # 透传 query 和 docs 字段
                     docs_data = {
                         "id": chat_id,
                         "object": "chat.completion.chunk",
@@ -414,7 +482,7 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
                     await asyncio.sleep(0)
 
                 elif isinstance(chunk, dict) and chunk.get("type") == "error":
-                    # 流内错误（如上游 LLM 返回 429）：通过 SSE 发送错误事件
+                    # Agent 内部产出的错误 chunk（如 token 预算超限），透传
                     error_data = {
                         "id": chat_id,
                         "object": "chat.completion.chunk",
@@ -434,10 +502,10 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
                     }
                     yield _format_sse_payload(error_data)
                     await asyncio.sleep(0)
-                    return  # 错误后终止流
+                    return
 
         except Exception as e:
-            # 兜底：生成器内未预见的异常，通过 SSE 发送错误事件
+            # 兜底：队列通信或 SSE 写入本身的异常
             error_data = {
                 "id": chat_id,
                 "object": "chat.completion.chunk",
@@ -458,7 +526,7 @@ def _handle_stream_message(conversation_id: int, content: str, db: Session):
             try:
                 yield _format_sse_payload(error_data)
             except Exception:
-                pass  # 如果连 SSE 写入都失败了，放弃
+                pass
 
         # 发送结束标志
         final_data = {

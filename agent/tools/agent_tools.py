@@ -12,7 +12,7 @@ from utils.logger_handler import logger
 
 rag_service = RAGSummarizeService()
 
-# HACK: 跨线程的潜在坑点，如果你的 Agent 在执行 RAG 检索时，使用了 loop.run_in_executor 将同步阻塞代码丢到了线程池中执行，需要注意：contextvars 默认不会自动跨越线程边界传递。如果在线程池中的代码调用了 _get_rag_cache()，可能会拿到 None 或报错。这种情况下，需要使用 contextvars.copy_context() 手动将上下文传递过去。
+# HACK: 跨线程的潜在坑点，如果 Agent 在执行 RAG 检索时，使用了 loop.run_in_executor 将同步阻塞代码丢到了线程池中执行，需要注意：contextvars 默认不会自动跨越线程边界传递。如果在线程池中的代码调用了 _get_rag_cache()，可能会拿到 None 或报错。这种情况下，需要使用 contextvars.copy_context() 手动将上下文传递过去。
 # 上下文隔离的 RAG 结果缓存：每个请求/Agent 执行上下文拥有独立的列表，
 # 通过 ContextVar 实现，杜绝多用户并发场景下的数据交叉污染。
 # 初始值为 None，由 execute_stream 在开始执行时设置为空列表。

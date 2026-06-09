@@ -120,6 +120,7 @@ class QueryProcessor:
         Returns:
             查询字符串列表（至少包含原始查询）
         """
+        # TODO：优先级 3，原始插叙和假设文档直接拼接会影响 生成多查询变体和 BM25 检索，可优化
         # Step 1: HyDE — 生成假设性文档，拼接到原始查询
         enriched_query = query
         if self.hyde_enabled:
@@ -334,6 +335,7 @@ def deduplicate_documents(docs: list, by_content: bool = True) -> list:
         seen_ids.add(doc_id)
 
         # 内容前缀去重（前 80 字）
+        # HACK: 优先级 10086，内容前缀去重机制可能存在误杀风险，目前场景无大问题
         if by_content:
             prefix = doc.page_content[:80].strip()
             if prefix in seen_prefixes:

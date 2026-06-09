@@ -5,13 +5,13 @@ import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datasets import Dataset
 from typing import Optional
-from ragas_main.src.ragas.cost import TokenUsage
-from ragas_main.src.ragas import evaluate
-from ragas_main.src.ragas.run_config import RunConfig
-from ragas_main.src.ragas.metrics._answer_relevance import AnswerRelevancy
-from ragas_main.src.ragas.metrics._faithfulness import Faithfulness
-from ragas_main.src.ragas.metrics._context_precision import ContextPrecision
-from ragas_main.src.ragas.metrics._context_recall import ContextRecall
+from ragas.cost import TokenUsage
+from ragas import evaluate
+from ragas.run_config import RunConfig
+from ragas.metrics._answer_relevance import AnswerRelevancy
+from ragas.metrics._faithfulness import Faithfulness
+from ragas.metrics._context_precision import ContextPrecision
+from ragas.metrics._context_recall import ContextRecall
 from langchain_core.outputs import LLMResult
 from langchain_core.callbacks import BaseCallbackHandler
 from tqdm import tqdm
@@ -70,10 +70,10 @@ def eval_rag(
         data_path: 评估数据 JSON 文件路径
         output_path: 结果输出 CSV 文件路径
         rag: RAGSummarizeService 实例
-        batch_size: ragas_main.src.ragas evaluate 的批处理大小
+        batch_size: ragas evaluate 的批处理大小
         n: 限制评估数据条数（0 = 全部）
         max_workers: RAG 检索阶段的并发数（默认 16）
-        eval_max_workers: ragas_main.src.ragas 评估阶段的并发数（默认 16，LLM 调用密集，不宜过高）
+        eval_max_workers: ragas 评估阶段的并发数（默认 16，LLM 调用密集，不宜过高）
     """
     data_dict = json.load(open(data_path, "r", encoding="utf-8"))
 
@@ -98,7 +98,7 @@ def eval_rag(
     results: list = [None] * len(questions)
 
     def fetch_rag(idx: int, query: str):
-        """单条 RAG 检索任务，返回独立文档列表供 ragas_main.src.ragas 逐文档评估"""
+        """单条 RAG 检索任务，返回独立文档列表供 ragas 逐文档评估"""
         answer, doc_texts = rag.rag_summarize_with_docs(query)
         return idx, answer, doc_texts
 
@@ -179,7 +179,7 @@ def overall_eval():
             rag=rag,
             batch_size=8,
             max_workers=8,  # Milvus 侧已用 BoundedSemaphore(16) 限流，这里可以设高
-            eval_max_workers=8,  # ragas_main.src.ragas 评估阶段每个样本多次串行 LLM 调用，并发过高易超时
+            eval_max_workers=8,  # ragas 评估阶段每个样本多次串行 LLM 调用，并发过高易超时
         )
         results_list.append(results)
         input_tokens += total_input_tokens
